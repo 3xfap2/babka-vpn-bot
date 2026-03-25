@@ -1,0 +1,223 @@
+from aiogram import Router, Bot, F
+from aiogram.filters import Command
+from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton, WebAppInfo
+from datetime import datetime
+from config import ADMIN_IDS, WEEK_DAYS, MONTH_DAYS
+from database import (
+    add_keys, get_stats, get_recent_users,
+    manual_set_key, get_all_user_ids, get_keys_info, get_user
+)
+
+router = Router()
+
+
+def is_admin(user_id: int) -> bool:
+    return user_id in ADMIN_IDS
+
+
+@router.message(Command("admin"))
+async def cmd_admin(message: Message):
+    if not is_admin(message.from_user.id):
+        return
+    await message.answer(
+        "🛠 <b>Админ панель БАБКА VPN</b>\n\n"
+        "📋 <b>Команды:</b>\n"
+        "/stats — статистика\n"
+        "/users — последние 30 пользователей\n"
+        "/keys — просмотр всех ключей\n\n"
+        "<b>Добавить ключи (по одному на строку):</b>\n"
+        "/addkey1w — ключи на неделю\n"
+        "/addkey1m — ключи на месяц\n"
+        "/addkeyfree — бесплатные ключи\n\n"
+        "/givekey &lt;user_id&gt; &lt;ключ&gt; &lt;week|month|trial&gt; — выдать вручную\n"
+        "/broadcast &lt;текст&gt; — рассылка всем\n"
+    )
+
+
+@router.message(Command("stats"))
+async def cmd_stats(message: Message):
+    if not is_admin(message.from_user.id):
+        return
+    s = await get_stats()
+    await message.answer(
+        f"📊 <b>Статистика</b>\n\n"
+        f"👥 Всего пользователей: <b>{s['total_users']}</b>\n"
+        f"✅ Активных подписок: <b>{s['active_subs']}</b>\n"
+        f"🔑 Свободных ключей: <b>{s['free_keys']}</b>\n"
+        f"🔒 Использовано ключей: <b>{s['used_keys']}</b>\n"
+        f"💳 Платежей: <b>{s['total_payments']}</b>\n"
+        f"⭐ Заработано звёзд: <b>{s['total_stars']}</b>\n"
+    )
+
+
+@router.message(Command("users"))
+async def cmd_users(message: Message):
+    if not is_admin(message.from_user.id):
+        return
+    users = await get_recent_users(30)
+    if not users:
+        await message.answer("Нет пользователей")
+        return
+    lines = []
+    for u in users:
+        sub = "❌"
+        if u.get("sub_end"):
+            try:
+                end_dt = datetime.fromisoformat(u["sub_end"])
+                if end_dt > datetime.now():
+                    sub = f"✅ {u['sub_type']} до {end_dt.strftime('%d.%m.%Y')}"
+            except Exception:
+                pass
+        uname = f"@{u['username']}" if u.get("username") else "—"
+        lines.append(f"<code>{u['user_id']}</code> {uname} — {sub}")
+    await message.answer(
+        "👥 <b>Последние пользователи:</b>\n\n" + "\n".join(lines)
+    )
+
+
+@router.message(Command("keys"))
+async def cmd_keys(message: Message):
+    if not is_admin(message.from_user.id):
+        return
+    info = await get_keys_info()
+
+    lines = ["🔑 <b>Все ключи в базе:</b>\n"]
+    for key_type, label in [("week", "📅 Неделя"), ("month", "🗓 Месяц"), ("trial", "🎁 Бесплатные"), ("any", "🔀 Любые")]:
+        keys = info.get(key_type, [])
+        free = [k for k in keys if not k["used"]]
+        used = [k for k in keys if k["used"]]
+        if not keys:
+            continue
+        lines.append(f"{label}: <b>{len(free)}</b> свободных / {len(used)} использовано")
+        for k in free[:10]:  # показываем до 10 свободных
+            lines.append(f"  ✅ <code>{k['key']}</code>")
+        if len(free) > 10:
+            lines.append(f"  ...ещё {len(free) - 10}")
+        for k in used[:5]:
+            uid = k.get("assigned_to", "?")
+            lines.append(f"  🔒 <code>{k['key']}</code> → <code>{uid}</code>")
+        if len(used) > 5:
+            lines.append(f"  ...ещё {len(used) - 5}")
+        lines.append("")
+
+    if len(lines) == 1:
+        await message.answer("Ключей нет. Добавьте через /addkey1w, /addkey1m или /addkeyfree")
+        return
+
+    await message.answer("\n".join(lines))
+
+
+async def _add_keys_from_message(message: Message, key_type: str, label: str):
+    """Общая логика для всех команд добавления ключей."""
+    target = message.reply_to_message or message
+    text = target.text or target.caption or ""
+    # убрать команду из начала
+    for cmd in ["/addkey1w", "/addkey1m", "/addkeyfree"]:
+        if text.startswith(cmd):
+            text = text[len(cmd):].strip()
+            break
+    keys = [line.strip() for line in text.splitlines() if line.strip()]
+    if not keys:
+        await message.answer(
+            f"Отправь ключи (по одному на строку) в следующем сообщении или сразу после команды:\n\n"
+            f"<code>/{message.text.split()[0][1:]}\nключ1\nключ2\nключ3</code>"
+        )
+        return
+    added, skipped = await add_keys(keys, key_type)
+    await message.answer(
+        f"{label}\n✅ Добавлено: <b>{added}</b>\n⏭ Пропущено (дубли): <b>{skipped}</b>"
+    )
+
+
+@router.message(Command("addkey1w"))
+async def cmd_addkey1w(message: Message):
+    if not is_admin(message.from_user.id):
+        return
+    await _add_keys_from_message(message, "week", "📅 <b>Ключи на неделю добавлены</b>")
+
+
+@router.message(Command("addkey1m"))
+async def cmd_addkey1m(message: Message):
+    if not is_admin(message.from_user.id):
+        return
+    await _add_keys_from_message(message, "month", "🗓 <b>Ключи на месяц добавлены</b>")
+
+
+@router.message(Command("addkeyfree"))
+async def cmd_addkeyfree(message: Message):
+    if not is_admin(message.from_user.id):
+        return
+    await _add_keys_from_message(message, "trial", "🎁 <b>Бесплатные ключи добавлены</b>")
+
+
+@router.message(Command("givekey"))
+async def cmd_givekey(message: Message, bot: Bot):
+    if not is_admin(message.from_user.id):
+        return
+    parts = message.text.split(maxsplit=3)
+    if len(parts) < 4:
+        await message.answer(
+            "Использование: /givekey &lt;user_id&gt; &lt;ключ&gt; &lt;week|month|trial&gt;"
+        )
+        return
+    try:
+        target_id = int(parts[1])
+    except ValueError:
+        await message.answer("Неверный user_id")
+        return
+    key = parts[2]
+    sub_type = parts[3]
+    days_map = {"week": WEEK_DAYS, "month": MONTH_DAYS, "trial": 7}
+    days = days_map.get(sub_type, WEEK_DAYS)
+    await manual_set_key(target_id, key, sub_type, days)
+    await message.answer(f"✅ Ключ выдан пользователю <code>{target_id}</code>")
+    try:
+        # Import here to avoid circular import
+        from handlers.start import build_webapp_url
+        user_data = await get_user(target_id)
+        webapp_url = await build_webapp_url(user_data, bot, target_id)
+        kb = ReplyKeyboardMarkup(
+            keyboard=[[KeyboardButton(
+                text="🔑 Открыть БАБКА VPN",
+                web_app=WebAppInfo(url=webapp_url)
+            )]],
+            resize_keyboard=True
+        )
+        await bot.send_message(
+            target_id,
+            f"🎉 <b>Администратор выдал вам подписку!</b>\n\n"
+            f"Тариф: <b>{sub_type}</b>\n"
+            f"VPN ключ: <code>{key}</code>\n\n"
+            "Откройте приложение — всё уже обновилось 👇",
+            reply_markup=kb
+        )
+    except Exception as e:
+        await message.answer(f"⚠️ Не удалось отправить уведомление: {e}")
+
+
+@router.message(Command("broadcast", "say"))
+async def cmd_broadcast(message: Message, bot: Bot):
+    if not is_admin(message.from_user.id):
+        return
+    cmd = message.text.split()[0].lstrip("/")
+    text = message.text[len(f"/{cmd}"):].strip()
+    if not text:
+        await message.answer("Использование: /broadcast &lt;текст&gt;")
+        return
+    user_ids = await get_all_user_ids()
+    sent, failed = 0, 0
+    status_msg = await message.answer(f"📤 Отправляю... (0/{len(user_ids)})")
+    for i, uid in enumerate(user_ids):
+        try:
+            await bot.send_message(uid, text)
+            sent += 1
+        except Exception:
+            failed += 1
+        if (i + 1) % 20 == 0:
+            try:
+                await status_msg.edit_text(f"📤 Отправляю... ({i + 1}/{len(user_ids)})")
+            except Exception:
+                pass
+    await status_msg.edit_text(
+        f"✅ Рассылка завершена\n✓ Отправлено: {sent}\n✗ Ошибок: {failed}"
+    )
