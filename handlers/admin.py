@@ -1,6 +1,6 @@
 from aiogram import Router, Bot, F
 from aiogram.filters import Command
-from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton, WebAppInfo
+from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
 from datetime import datetime
 from config import ADMIN_IDS, WEEK_DAYS, MONTH_DAYS
 from database import (
@@ -235,19 +235,15 @@ async def cmd_givekey(message: Message, bot: Bot):
         from handlers.start import build_webapp_url
         user_data = await get_user(target_id)
         webapp_url = await build_webapp_url(user_data, bot, target_id)
-        kb = ReplyKeyboardMarkup(
-            keyboard=[[KeyboardButton(
-                text="🔑 Открыть БАБКА VPN",
-                web_app=WebAppInfo(url=webapp_url)
-            )]],
-            resize_keyboard=True
-        )
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="🔓 Открыть БАБКА VPN", web_app=WebAppInfo(url=webapp_url))],
+        ])
         await bot.send_message(
             target_id,
             f"🎉 <b>Администратор выдал вам подписку!</b>\n\n"
             f"Тариф: <b>{sub_type}</b>\n"
             f"VPN ключ: <code>{key}</code>\n\n"
-            "Откройте приложение — всё уже обновилось 👇",
+            "⚠️ <b>Нажмите кнопку ниже</b> — откроется обновлённое приложение с вашим ключом:",
             parse_mode="HTML",
             reply_markup=kb
         )
