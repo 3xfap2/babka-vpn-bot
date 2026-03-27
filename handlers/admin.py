@@ -5,8 +5,8 @@ from datetime import datetime
 from config import ADMIN_IDS, WEEK_DAYS, MONTH_DAYS
 from database import (
     add_keys, get_stats, get_recent_users,
-    manual_set_key, get_all_user_ids, get_user_ids_by_sub, get_keys_info, get_user, delete_keys,
-    clear_user_key
+    manual_set_key, get_all_user_ids, get_user_ids_by_sub, get_keys_info, get_user,
+    get_user_by_username, delete_keys, clear_user_key
 )
 
 router = Router()
@@ -257,14 +257,15 @@ async def cmd_clearkey(message: Message, bot: Bot):
         return
     parts = message.text.split(maxsplit=1)
     if len(parts) < 2:
-        await message.answer("Использование: /clearkey &lt;user_id&gt;", parse_mode="HTML")
+        await message.answer("Использование: /clearkey &lt;user_id или @username&gt;", parse_mode="HTML")
         return
-    try:
-        target_id = int(parts[1].strip())
-    except ValueError:
-        await message.answer("❌ Неверный user_id")
-        return
-    user = await get_user(target_id)
+    arg = parts[1].strip()
+    if arg.startswith("@") or not arg.lstrip("-").isdigit():
+        user = await get_user_by_username(arg)
+        target_id = user["user_id"] if user else None
+    else:
+        target_id = int(arg)
+        user = await get_user(target_id)
     if not user:
         await message.answer("❌ Пользователь не найден")
         return
