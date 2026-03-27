@@ -176,6 +176,16 @@ async def manual_set_key(user_id: int, key: str, sub_type: str, days: int):
             UPDATE users SET sub_type = ?, sub_end = ?, vpn_key = ?, expiry_notified = 0
             WHERE user_id = ?
         """, (sub_type, end, key, user_id))
+
+        # Upsert key into keys table so /keys shows it as active
+        await db.execute("""
+            INSERT INTO keys (key, key_type, used, expired, assigned_to, assigned_at)
+            VALUES (?, ?, 1, 0, ?, ?)
+            ON CONFLICT(key) DO UPDATE SET
+                used = 1, expired = 0, assigned_to = excluded.assigned_to,
+                assigned_at = excluded.assigned_at, key_type = excluded.key_type
+        """, (key, sub_type, user_id, now.isoformat()))
+
         await db.commit()
 
 
