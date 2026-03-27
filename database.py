@@ -267,7 +267,7 @@ async def clear_user_key(user_id: int) -> bool:
     async with aiosqlite.connect(DB_PATH) as db:
         # Free the key back in keys table
         await db.execute(
-            "UPDATE keys SET assigned_to = NULL, sub_end = NULL WHERE assigned_to = ?",
+            "UPDATE keys SET assigned_to = NULL, used = 0 WHERE assigned_to = ?",
             (user_id,)
         )
         cur = await db.execute(
