@@ -307,6 +307,23 @@ async def get_all_user_ids() -> list[int]:
             return [r[0] for r in rows]
 
 
+async def get_user_ids_by_sub(active: bool) -> list[int]:
+    """Return user IDs with active (True) or inactive (False) subscription."""
+    now = datetime.now().isoformat()
+    async with aiosqlite.connect(DB_PATH) as db:
+        if active:
+            async with db.execute(
+                "SELECT user_id FROM users WHERE sub_end IS NOT NULL AND sub_end > ?", (now,)
+            ) as cur:
+                rows = await cur.fetchall()
+        else:
+            async with db.execute(
+                "SELECT user_id FROM users WHERE sub_end IS NULL OR sub_end <= ?", (now,)
+            ) as cur:
+                rows = await cur.fetchall()
+        return [r[0] for r in rows]
+
+
 async def get_keys_info() -> dict:
     """Returns all keys grouped by type with expiry status."""
     async with aiosqlite.connect(DB_PATH) as db:
