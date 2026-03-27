@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-BOT_USERNAME = os.getenv("BOT_USERNAME", "alexandrlloxxbot")
+BOT_USERNAME = os.getenv("BOT_USERNAME", "babka_vpnbot")
 ADMIN_IDS = [int(x.strip()) for x in os.getenv("ADMIN_IDS", "6849781575").split(",")]
 WEBAPP_URL = os.getenv("WEBAPP_URL", "https://your-domain.com")
 TRIAL_CHANNEL = os.getenv("TRIAL_CHANNEL", "@BabkaVPN")
