@@ -5,7 +5,7 @@ from datetime import datetime
 from config import ADMIN_IDS, WEEK_DAYS, MONTH_DAYS
 from database import (
     add_keys, get_stats, get_recent_users,
-    manual_set_key, get_all_user_ids, get_keys_info, get_user
+    manual_set_key, get_all_user_ids, get_keys_info, get_user, delete_keys
 )
 
 router = Router()
@@ -21,16 +21,20 @@ async def cmd_admin(message: Message):
         return
     await message.answer(
         "🛠 <b>Админ панель БАБКА VPN</b>\n\n"
-        "📋 <b>Команды:</b>\n"
-        "/stats — статистика\n"
+        "📊 <b>Статистика:</b>\n"
+        "/stats — общая статистика\n"
         "/users — последние 30 пользователей\n"
-        "/keys — просмотр всех ключей\n\n"
-        "<b>Добавить ключи (по одному на строку):</b>\n"
-        "/addkey1w — ключи на неделю\n"
-        "/addkey1m — ключи на месяц\n"
-        "/addkeyfree — бесплатные ключи\n\n"
-        "/givekey &lt;user_id&gt; &lt;ключ&gt; &lt;week|month|trial&gt; — выдать вручную\n"
-        "/broadcast &lt;текст&gt; — рассылка всем\n"
+        "/keys — все ключи со статусом\n\n"
+        "🔑 <b>Управление ключами:</b>\n"
+        "/addkey1w — добавить ключи на неделю\n"
+        "/addkey1m — добавить ключи на месяц\n"
+        "/addkeyfree — добавить бесплатные ключи\n"
+        "/delkey &lt;ключ&gt; — удалить конкретный ключ\n"
+        "/delkeys week|month|trial|all — удалить все ключи типа\n\n"
+        "👤 <b>Пользователи:</b>\n"
+        "/givekey &lt;user_id&gt; &lt;ключ&gt; &lt;week|month|trial&gt;\n"
+        "/say &lt;текст&gt; — рассылка всем\n",
+        parse_mode="HTML"
     )
 
 
@@ -45,8 +49,10 @@ async def cmd_stats(message: Message):
         f"✅ Активных подписок: <b>{s['active_subs']}</b>\n"
         f"🔑 Свободных ключей: <b>{s['free_keys']}</b>\n"
         f"🔒 Использовано ключей: <b>{s['used_keys']}</b>\n"
+        f"❌ Истёкших ключей: <b>{s['expired_keys']}</b>\n"
         f"💳 Платежей: <b>{s['total_payments']}</b>\n"
-        f"⭐ Заработано звёзд: <b>{s['total_stars']}</b>\n"
+        f"⭐ Заработано звёзд: <b>{s['total_stars']}</b>\n",
+        parse_mode="HTML"
     )
 
 
@@ -71,7 +77,8 @@ async def cmd_users(message: Message):
         uname = f"@{u['username']}" if u.get("username") else "—"
         lines.append(f"<code>{u['user_id']}</code> {uname} — {sub}")
     await message.answer(
-        "👥 <b>Последние пользователи:</b>\n\n" + "\n".join(lines)
+        "👥 <b>Последние пользователи:</b>\n\n" + "\n".join(lines),
+        parse_mode="HTML"
     )
 
 
@@ -82,14 +89,24 @@ async def cmd_keys(message: Message):
     info = await get_keys_info()
 
     lines = ["🔑 <b>Все ключи в базе:</b>\n"]
-    for key_type, label in [("week", "📅 Неделя"), ("month", "🗓 Месяц"), ("trial", "🎁 Бесплатные"), ("any", "🔀 Любые")]:
+    for key_type, label in [
+        ("week", "📅 Неделя"),
+        ("month", "🗓 Месяц"),
+        ("trial", "🎁 Бесплатные"),
+        ("any", "🔀 Любые"),
+    ]:
         keys = info.get(key_type, [])
-        free = [k for k in keys if not k["used"]]
-        used = [k for k in keys if k["used"]]
         if not keys:
             continue
-        lines.append(f"{label}: <b>{len(free)}</b> свободных / {len(used)} использовано")
-        for k in free[:10]:  # показываем до 10 свободных
+        free = [k for k in keys if not k["used"] and not k["expired"]]
+        used = [k for k in keys if k["used"] and not k["expired"]]
+        expired = [k for k in keys if k["expired"]]
+
+        lines.append(
+            f"{label}: ✅ <b>{len(free)}</b> свободных / "
+            f"🔒 {len(used)} работает / ❌ {len(expired)} истекло"
+        )
+        for k in free[:10]:
             lines.append(f"  ✅ <code>{k['key']}</code>")
         if len(free) > 10:
             lines.append(f"  ...ещё {len(free) - 10}")
@@ -98,20 +115,22 @@ async def cmd_keys(message: Message):
             lines.append(f"  🔒 <code>{k['key']}</code> → <code>{uid}</code>")
         if len(used) > 5:
             lines.append(f"  ...ещё {len(used) - 5}")
+        for k in expired[:3]:
+            lines.append(f"  ❌ <code>{k['key']}</code>")
+        if len(expired) > 3:
+            lines.append(f"  ...ещё {len(expired) - 3}")
         lines.append("")
 
     if len(lines) == 1:
         await message.answer("Ключей нет. Добавьте через /addkey1w, /addkey1m или /addkeyfree")
         return
 
-    await message.answer("\n".join(lines))
+    await message.answer("\n".join(lines), parse_mode="HTML")
 
 
 async def _add_keys_from_message(message: Message, key_type: str, label: str):
-    """Общая логика для всех команд добавления ключей."""
     target = message.reply_to_message or message
     text = target.text or target.caption or ""
-    # убрать команду из начала
     for cmd in ["/addkey1w", "/addkey1m", "/addkeyfree"]:
         if text.startswith(cmd):
             text = text[len(cmd):].strip()
@@ -119,13 +138,15 @@ async def _add_keys_from_message(message: Message, key_type: str, label: str):
     keys = [line.strip() for line in text.splitlines() if line.strip()]
     if not keys:
         await message.answer(
-            f"Отправь ключи (по одному на строку) в следующем сообщении или сразу после команды:\n\n"
-            f"<code>/{message.text.split()[0][1:]}\nключ1\nключ2\nключ3</code>"
+            f"Отправь ключи (по одному на строку) сразу после команды:\n\n"
+            f"<code>{message.text.split()[0]}\nключ1\nключ2\nключ3</code>",
+            parse_mode="HTML"
         )
         return
     added, skipped = await add_keys(keys, key_type)
     await message.answer(
-        f"{label}\n✅ Добавлено: <b>{added}</b>\n⏭ Пропущено (дубли): <b>{skipped}</b>"
+        f"{label}\n✅ Добавлено: <b>{added}</b>\n⏭ Пропущено (дубли): <b>{skipped}</b>",
+        parse_mode="HTML"
     )
 
 
@@ -150,6 +171,40 @@ async def cmd_addkeyfree(message: Message):
     await _add_keys_from_message(message, "trial", "🎁 <b>Бесплатные ключи добавлены</b>")
 
 
+@router.message(Command("delkey"))
+async def cmd_delkey(message: Message):
+    if not is_admin(message.from_user.id):
+        return
+    parts = message.text.split(maxsplit=1)
+    if len(parts) < 2:
+        await message.answer("Использование: /delkey &lt;ключ&gt;", parse_mode="HTML")
+        return
+    key = parts[1].strip()
+    count = await delete_keys(specific_key=key)
+    if count:
+        await message.answer(f"✅ Ключ удалён: <code>{key}</code>", parse_mode="HTML")
+    else:
+        await message.answer("❌ Ключ не найден")
+
+
+@router.message(Command("delkeys"))
+async def cmd_delkeys(message: Message):
+    if not is_admin(message.from_user.id):
+        return
+    parts = message.text.split(maxsplit=1)
+    if len(parts) < 2 or parts[1].strip() not in ("week", "month", "trial", "all"):
+        await message.answer(
+            "Использование: /delkeys &lt;week|month|trial|all&gt;\n\n"
+            "⚠️ Удаляет ВСЕ ключи указанного типа",
+            parse_mode="HTML"
+        )
+        return
+    key_type = parts[1].strip()
+    count = await delete_keys(key_type=key_type)
+    label = {"week": "неделю", "month": "месяц", "trial": "бесплатные", "all": "все"}.get(key_type, key_type)
+    await message.answer(f"✅ Удалено ключей ({label}): <b>{count}</b>", parse_mode="HTML")
+
+
 @router.message(Command("givekey"))
 async def cmd_givekey(message: Message, bot: Bot):
     if not is_admin(message.from_user.id):
@@ -157,7 +212,8 @@ async def cmd_givekey(message: Message, bot: Bot):
     parts = message.text.split(maxsplit=3)
     if len(parts) < 4:
         await message.answer(
-            "Использование: /givekey &lt;user_id&gt; &lt;ключ&gt; &lt;week|month|trial&gt;"
+            "Использование: /givekey &lt;user_id&gt; &lt;ключ&gt; &lt;week|month|trial&gt;",
+            parse_mode="HTML"
         )
         return
     try:
@@ -170,9 +226,8 @@ async def cmd_givekey(message: Message, bot: Bot):
     days_map = {"week": WEEK_DAYS, "month": MONTH_DAYS, "trial": 7}
     days = days_map.get(sub_type, WEEK_DAYS)
     await manual_set_key(target_id, key, sub_type, days)
-    await message.answer(f"✅ Ключ выдан пользователю <code>{target_id}</code>")
+    await message.answer(f"✅ Ключ выдан пользователю <code>{target_id}</code>", parse_mode="HTML")
     try:
-        # Import here to avoid circular import
         from handlers.start import build_webapp_url
         user_data = await get_user(target_id)
         webapp_url = await build_webapp_url(user_data, bot, target_id)
@@ -189,6 +244,7 @@ async def cmd_givekey(message: Message, bot: Bot):
             f"Тариф: <b>{sub_type}</b>\n"
             f"VPN ключ: <code>{key}</code>\n\n"
             "Откройте приложение — всё уже обновилось 👇",
+            parse_mode="HTML",
             reply_markup=kb
         )
     except Exception as e:
@@ -202,7 +258,7 @@ async def cmd_broadcast(message: Message, bot: Bot):
     cmd = message.text.split()[0].lstrip("/")
     text = message.text[len(f"/{cmd}"):].strip()
     if not text:
-        await message.answer("Использование: /broadcast &lt;текст&gt;")
+        await message.answer("Использование: /say &lt;текст&gt;", parse_mode="HTML")
         return
     user_ids = await get_all_user_ids()
     sent, failed = 0, 0
