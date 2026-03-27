@@ -252,6 +252,22 @@ async def mark_trial_used(user_id: int):
         await db.commit()
 
 
+async def clear_user_key(user_id: int) -> bool:
+    """Remove VPN key and subscription for a user. Returns True if user existed."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        # Free the key back in keys table
+        await db.execute(
+            "UPDATE keys SET assigned_to = NULL, sub_end = NULL WHERE assigned_to = ?",
+            (user_id,)
+        )
+        cur = await db.execute(
+            "UPDATE users SET vpn_key = NULL, sub_type = NULL, sub_end = NULL WHERE user_id = ?",
+            (user_id,)
+        )
+        await db.commit()
+        return cur.rowcount > 0
+
+
 async def save_payment(user_id: int, pay_type: str, stars: int, tg_pay_id: str):
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute(
