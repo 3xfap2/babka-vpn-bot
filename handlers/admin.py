@@ -27,9 +27,7 @@ async def cmd_admin(message: Message):
         "/users — последние 30 пользователей\n"
         "/keys — все ключи со статусом\n\n"
         "🔑 <b>Управление ключами:</b>\n"
-        "/addkey1w — добавить ключи на неделю\n"
-        "/addkey1m — добавить ключи на месяц\n"
-        "/addkeyfree — добавить бесплатные ключи\n"
+        "/addkey week|month|free — добавить ключи\n"
         "/delkey &lt;ключ&gt; — удалить конкретный ключ\n"
         "/delkeys week|month|trial|all — удалить все ключи типа\n\n"
         "👤 <b>Пользователи:</b>\n"
@@ -133,47 +131,48 @@ async def cmd_keys(message: Message):
     await message.answer("\n".join(lines), parse_mode="HTML")
 
 
-async def _add_keys_from_message(message: Message, key_type: str, label: str):
-    target = message.reply_to_message or message
-    text = target.text or target.caption or ""
-    for cmd in ["/addkey1w", "/addkey1m", "/addkeyfree"]:
-        if text.startswith(cmd):
-            text = text[len(cmd):].strip()
+@router.message(Command("addkey"))
+async def cmd_addkey(message: Message):
+    if not is_admin(message.from_user.id):
+        return
+    text = message.text[len("/addkey"):].strip()
+    lines = [l.strip() for l in text.splitlines() if l.strip()]
+
+    TYPE_MAP = {
+        "week": ("week", "📅 <b>Ключи на неделю добавлены</b>"),
+        "month": ("month", "🗓 <b>Ключи на месяц добавлены</b>"),
+        "free": ("trial", "🎁 <b>Бесплатные ключи добавлены</b>"),
+    }
+
+    key_type = label = None
+    for alias, (kt, lb) in TYPE_MAP.items():
+        if lines and lines[0].lower() == alias:
+            key_type, label = kt, lb
+            lines = lines[1:]
             break
-    keys = [line.strip() for line in text.splitlines() if line.strip()]
-    if not keys:
+        if lines and lines[-1].lower() == alias:
+            key_type, label = kt, lb
+            lines = lines[:-1]
+            break
+
+    if not key_type:
         await message.answer(
-            f"Отправь ключи (по одному на строку) сразу после команды:\n\n"
-            f"<code>{message.text.split()[0]}\nключ1\nключ2\nключ3</code>",
+            "Использование:\n\n"
+            "<code>/addkey week\nключ1\nключ2</code>\n\n"
+            "Типы: <b>week</b> / <b>month</b> / <b>free</b>",
             parse_mode="HTML"
         )
         return
-    added, skipped = await add_keys(keys, key_type)
+
+    if not lines:
+        await message.answer("❌ Нет ключей для добавления")
+        return
+
+    added, skipped = await add_keys(lines, key_type)
     await message.answer(
         f"{label}\n✅ Добавлено: <b>{added}</b>\n⏭ Пропущено (дубли): <b>{skipped}</b>",
         parse_mode="HTML"
     )
-
-
-@router.message(Command("addkey1w"))
-async def cmd_addkey1w(message: Message):
-    if not is_admin(message.from_user.id):
-        return
-    await _add_keys_from_message(message, "week", "📅 <b>Ключи на неделю добавлены</b>")
-
-
-@router.message(Command("addkey1m"))
-async def cmd_addkey1m(message: Message):
-    if not is_admin(message.from_user.id):
-        return
-    await _add_keys_from_message(message, "month", "🗓 <b>Ключи на месяц добавлены</b>")
-
-
-@router.message(Command("addkeyfree"))
-async def cmd_addkeyfree(message: Message):
-    if not is_admin(message.from_user.id):
-        return
-    await _add_keys_from_message(message, "trial", "🎁 <b>Бесплатные ключи добавлены</b>")
 
 
 @router.message(Command("delkey"))
