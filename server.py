@@ -29,10 +29,13 @@ def validate_init_data(init_data: str) -> dict | None:
 
 
 async def api_user(request: web.Request) -> web.Response:
+    headers = {"Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "X-Telegram-Init-Data"}
+    if request.method == "OPTIONS":
+        return web.Response(headers=headers)
     init_data = request.headers.get("X-Telegram-Init-Data", "")
     tg_user = validate_init_data(init_data)
     if not tg_user:
-        return web.json_response({"error": "unauthorized"}, status=401)
+        return web.json_response({"error": "unauthorized"}, status=401, headers=headers)
 
     user_id = tg_user.get("id")
     username = tg_user.get("username", "")
@@ -61,7 +64,7 @@ async def api_user(request: web.Request) -> web.Response:
         "trial_used": bool(user.get("trial_used")) if user else False,
         "week_price": WEEK_PRICE_STARS,
         "month_price": MONTH_PRICE_STARS,
-    })
+    }, headers=headers)
 
 
 async def serve_index(request: web.Request) -> web.Response:
@@ -74,6 +77,7 @@ async def serve_index(request: web.Request) -> web.Response:
 async def start_web_server():
     app = web.Application()
     app.router.add_get("/api/user", api_user)
+    app.router.add_route("OPTIONS", "/api/user", api_user)
     app.router.add_get("/", serve_index)
 
     runner = web.AppRunner(app)
