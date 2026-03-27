@@ -5,7 +5,8 @@ from datetime import datetime
 from config import ADMIN_IDS, WEEK_DAYS, MONTH_DAYS
 from database import (
     add_keys, get_stats, get_recent_users,
-    manual_set_key, get_all_user_ids, get_user_ids_by_sub, get_keys_info, get_user, delete_keys
+    manual_set_key, get_all_user_ids, get_user_ids_by_sub, get_keys_info, get_user, delete_keys,
+    clear_user_key
 )
 
 router = Router()
@@ -32,7 +33,8 @@ async def cmd_admin(message: Message):
         "/delkey &lt;ключ&gt; — удалить конкретный ключ\n"
         "/delkeys week|month|trial|all — удалить все ключи типа\n\n"
         "👤 <b>Пользователи:</b>\n"
-        "/givekey &lt;user_id&gt; &lt;ключ&gt; &lt;week|month|trial&gt;\n\n"
+        "/givekey &lt;user_id&gt; &lt;ключ&gt; &lt;week|month|trial&gt;\n"
+        "/clearkey &lt;user_id&gt; — удалить ключ у пользователя\n\n"
         "📢 <b>Рассылка:</b>\n"
         "/say &lt;текст&gt; — всем\n"
         "/sayactive &lt;текст&gt; — только с активной подпиской\n"
@@ -252,6 +254,44 @@ async def cmd_givekey(message: Message, bot: Bot):
         )
     except Exception as e:
         await message.answer(f"⚠️ Не удалось отправить уведомление: {e}")
+
+
+@router.message(Command("clearkey"))
+async def cmd_clearkey(message: Message, bot: Bot):
+    if not is_admin(message.from_user.id):
+        return
+    parts = message.text.split(maxsplit=1)
+    if len(parts) < 2:
+        await message.answer("Использование: /clearkey &lt;user_id&gt;", parse_mode="HTML")
+        return
+    try:
+        target_id = int(parts[1].strip())
+    except ValueError:
+        await message.answer("❌ Неверный user_id")
+        return
+    user = await get_user(target_id)
+    if not user:
+        await message.answer("❌ Пользователь не найден")
+        return
+    old_key = user.get("vpn_key") or "—"
+    found = await clear_user_key(target_id)
+    if found:
+        await message.answer(
+            f"✅ Ключ удалён у пользователя <code>{target_id}</code>\n"
+            f"Был ключ: <code>{old_key}</code>",
+            parse_mode="HTML"
+        )
+        try:
+            await bot.send_message(
+                target_id,
+                "⚠️ <b>Ваша подписка была отозвана администратором.</b>\n\n"
+                "Если это ошибка — обратитесь в поддержку.",
+                parse_mode="HTML"
+            )
+        except Exception:
+            pass
+    else:
+        await message.answer("❌ Пользователь не найден")
 
 
 async def _do_broadcast(message: Message, bot: Bot, user_ids: list, text: str, label: str):
