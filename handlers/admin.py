@@ -5,7 +5,7 @@ from datetime import datetime
 from config import ADMIN_IDS, WEEK_DAYS, MONTH_DAYS
 from database import (
     add_keys, get_stats, get_recent_users,
-    manual_set_key, get_all_user_ids, get_keys_info, get_user, delete_keys
+    manual_set_key, get_all_user_ids, get_user_ids_by_sub, get_keys_info, get_user, delete_keys
 )
 
 router = Router()
@@ -32,8 +32,11 @@ async def cmd_admin(message: Message):
         "/delkey &lt;ключ&gt; — удалить конкретный ключ\n"
         "/delkeys week|month|trial|all — удалить все ключи типа\n\n"
         "👤 <b>Пользователи:</b>\n"
-        "/givekey &lt;user_id&gt; &lt;ключ&gt; &lt;week|month|trial&gt;\n"
-        "/say &lt;текст&gt; — рассылка всем\n",
+        "/givekey &lt;user_id&gt; &lt;ключ&gt; &lt;week|month|trial&gt;\n\n"
+        "📢 <b>Рассылка:</b>\n"
+        "/say &lt;текст&gt; — всем\n"
+        "/sayactive &lt;текст&gt; — только с активной подпиской\n"
+        "/sayinactive &lt;текст&gt; — только без подписки\n",
         parse_mode="HTML"
     )
 
@@ -251,6 +254,25 @@ async def cmd_givekey(message: Message, bot: Bot):
         await message.answer(f"⚠️ Не удалось отправить уведомление: {e}")
 
 
+async def _do_broadcast(message: Message, bot: Bot, user_ids: list, text: str, label: str):
+    sent, failed = 0, 0
+    status_msg = await message.answer(f"📤 {label}: отправляю... (0/{len(user_ids)})")
+    for i, uid in enumerate(user_ids):
+        try:
+            await bot.send_message(uid, text, parse_mode="HTML")
+            sent += 1
+        except Exception:
+            failed += 1
+        if (i + 1) % 20 == 0:
+            try:
+                await status_msg.edit_text(f"📤 {label}: отправляю... ({i + 1}/{len(user_ids)})")
+            except Exception:
+                pass
+    await status_msg.edit_text(
+        f"✅ Рассылка завершена ({label})\n✓ Отправлено: {sent}\n✗ Ошибок: {failed}"
+    )
+
+
 @router.message(Command("broadcast", "say"))
 async def cmd_broadcast(message: Message, bot: Bot):
     if not is_admin(message.from_user.id):
@@ -261,19 +283,34 @@ async def cmd_broadcast(message: Message, bot: Bot):
         await message.answer("Использование: /say &lt;текст&gt;", parse_mode="HTML")
         return
     user_ids = await get_all_user_ids()
-    sent, failed = 0, 0
-    status_msg = await message.answer(f"📤 Отправляю... (0/{len(user_ids)})")
-    for i, uid in enumerate(user_ids):
-        try:
-            await bot.send_message(uid, text)
-            sent += 1
-        except Exception:
-            failed += 1
-        if (i + 1) % 20 == 0:
-            try:
-                await status_msg.edit_text(f"📤 Отправляю... ({i + 1}/{len(user_ids)})")
-            except Exception:
-                pass
-    await status_msg.edit_text(
-        f"✅ Рассылка завершена\n✓ Отправлено: {sent}\n✗ Ошибок: {failed}"
-    )
+    await _do_broadcast(message, bot, user_ids, text, "Все пользователи")
+
+
+@router.message(Command("sayactive"))
+async def cmd_sayactive(message: Message, bot: Bot):
+    if not is_admin(message.from_user.id):
+        return
+    text = message.text[len("/sayactive"):].strip()
+    if not text:
+        await message.answer("Использование: /sayactive &lt;текст&gt;", parse_mode="HTML")
+        return
+    user_ids = await get_user_ids_by_sub(active=True)
+    if not user_ids:
+        await message.answer("Нет пользователей с активной подпиской")
+        return
+    await _do_broadcast(message, bot, user_ids, text, f"Активные подписчики ({len(user_ids)})")
+
+
+@router.message(Command("sayinactive"))
+async def cmd_sayinactive(message: Message, bot: Bot):
+    if not is_admin(message.from_user.id):
+        return
+    text = message.text[len("/sayinactive"):].strip()
+    if not text:
+        await message.answer("Использование: /sayinactive &lt;текст&gt;", parse_mode="HTML")
+        return
+    user_ids = await get_user_ids_by_sub(active=False)
+    if not user_ids:
+        await message.answer("Нет пользователей без подписки")
+        return
+    await _do_broadcast(message, bot, user_ids, text, f"Без подписки ({len(user_ids)})")
