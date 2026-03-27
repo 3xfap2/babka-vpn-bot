@@ -146,8 +146,10 @@ async def cmd_start(message: Message, bot: Bot):
         username=message.from_user.username or "",
     )
 
+    ref_link = f"https://t.me/{BOT_USERNAME}?start=ref_{user_id}"
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🔓 Открыть БАБКА VPN", web_app=WebAppInfo(url=url))],
+        [InlineKeyboardButton(text="👥 Пригласить друга (+7 дней)", url=f"https://t.me/share/url?url={ref_link}&text=Крутой%20VPN%20бот!")],
         [InlineKeyboardButton(text="💬 Связаться с поддержкой", url="https://t.me/Pardonsky")],
     ])
 
