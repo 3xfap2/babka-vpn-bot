@@ -10,14 +10,15 @@ from database import assign_key, save_payment, get_user, manual_set_key, add_ref
 router = Router()
 logger = logging.getLogger(__name__)
 
-NOTIFY_ADMIN_ID = 7565071317  # уведомления о покупках
+NOTIFY_ADMIN_IDS = [6849781575, 7565071317]
 
 
 async def _notify_admin(bot: Bot, text: str):
-    try:
-        await bot.send_message(NOTIFY_ADMIN_ID, text, parse_mode="HTML")
-    except Exception as e:
-        logger.warning(f"Admin notify failed: {e}")
+    for admin_id in NOTIFY_ADMIN_IDS:
+        try:
+            await bot.send_message(admin_id, text, parse_mode="HTML")
+        except Exception as e:
+            logger.warning(f"Admin notify failed for {admin_id}: {e}")
 
 
 @router.pre_checkout_query()
