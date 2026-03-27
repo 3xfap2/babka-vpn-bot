@@ -190,7 +190,12 @@ async def add_ref_days(referrer_id: int, days: int):
 
         now = datetime.now()
         sub_end = row["sub_end"]
-        has_active = sub_end and datetime.fromisoformat(sub_end) > now if sub_end else False
+        has_active = False
+        if sub_end:
+            try:
+                has_active = datetime.fromisoformat(sub_end) > now
+            except Exception:
+                pass
 
         if has_active:
             # Extend existing subscription
@@ -343,6 +348,11 @@ async def get_expired_unsent_users() -> list[dict]:
 
 async def mark_expiry_notified(user_id: int):
     async with aiosqlite.connect(DB_PATH) as db:
+        # Mark the key as expired before clearing user subscription
+        await db.execute(
+            "UPDATE keys SET expired = 1 WHERE assigned_to = ? AND used = 1 AND expired = 0",
+            (user_id,)
+        )
         await db.execute(
             "UPDATE users SET expiry_notified = 1, sub_type = NULL, sub_end = NULL, vpn_key = NULL WHERE user_id = ?",
             (user_id,)
