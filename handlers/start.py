@@ -90,6 +90,7 @@ async def build_webapp_url(user: dict | None, bot: Bot, user_id: int, first_name
         "n": first_name,
         "u": username,
         "bn": BOT_USERNAME,
+        "au": WEBAPP_URL.rstrip("/"),
     }
     encoded = base64.urlsafe_b64encode(
         json.dumps(data, ensure_ascii=False).encode()
