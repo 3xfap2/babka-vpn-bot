@@ -1,6 +1,7 @@
 import logging
 from aiogram import Router, F, Bot
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
+from urllib.parse import quote
 from config import TRIAL_CHANNEL, TRIAL_DAYS, ADMIN_IDS, BOT_USERNAME
 from database import get_user, assign_key, mark_trial_used
 
@@ -132,7 +133,7 @@ async def check_subscription_callback(callback: CallbackQuery, bot: Bot):
         ref_link = f"https://t.me/{BOT_USERNAME}?start=ref_{user.id}"
         kb = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="🔓 Открыть БАБКА VPN", web_app=WebAppInfo(url=url))],
-            [InlineKeyboardButton(text="👥 Пригласить друга (+7 дней)", url=f"https://t.me/share/url?url={ref_link}&text=Крутой%20VPN%20бот!")],
+            [InlineKeyboardButton(text="👥 Пригласить друга (+7 дней)", url=f"https://t.me/share/url?url={quote(ref_link)}&text={quote('Крутой VPN бот!')}")],
             [InlineKeyboardButton(text="💬 Связаться с поддержкой", url="https://t.me/Pardonsky")],
         ])
         await callback.message.answer(
