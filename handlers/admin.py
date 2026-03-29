@@ -235,7 +235,12 @@ async def cmd_givekey(message: Message, bot: Bot):
     try:
         from handlers.start import build_webapp_url
         user_data = await get_user(target_id)
-        webapp_url = await build_webapp_url(user_data, bot, target_id)
+        webapp_url = await build_webapp_url(
+            user_data, bot, target_id,
+            first_name=user_data.get("first_name", "") if user_data else "",
+            username=user_data.get("username", "") if user_data else "",
+            skip_invoices=True
+        )
         kb = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="🔓 Открыть БАБКА VPN", web_app=WebAppInfo(url=webapp_url))],
         ])
