@@ -16,7 +16,7 @@ router = Router()
 logger = logging.getLogger(__name__)
 
 
-async def build_webapp_url(user: dict | None, bot: Bot, user_id: int, first_name: str = "", username: str = "") -> str:
+async def build_webapp_url(user: dict | None, bot: Bot, user_id: int, first_name: str = "", username: str = "", skip_invoices: bool = False) -> str:
     sub_active = False
     sub_type = None
     sub_end = None
@@ -37,6 +37,10 @@ async def build_webapp_url(user: dict | None, bot: Bot, user_id: int, first_name
                 pass
 
     # Pre-generate invoice links so Mini App can use tg.openInvoice()
+    if skip_invoices:
+        return _build_url_from_data(sub_active, sub_type, sub_end, vpn_key, trial_used,
+                                    None, None, None, user_id, first_name, username)
+
     try:
         week_link = await bot.create_invoice_link(
             title="Подписка на неделю",
@@ -78,6 +82,12 @@ async def build_webapp_url(user: dict | None, bot: Bot, user_id: int, first_name
 
     logger.info(f"Invoice links result — week: {'OK' if week_link else 'NONE'}, month: {'OK' if month_link else 'NONE'}, test: {'OK' if test_link else 'NONE'}")
 
+    return _build_url_from_data(sub_active, sub_type, sub_end, vpn_key, trial_used,
+                                week_link, month_link, test_link, user_id, first_name, username)
+
+
+def _build_url_from_data(sub_active, sub_type, sub_end, vpn_key, trial_used,
+                         week_link, month_link, test_link, user_id, first_name, username) -> str:
     data = {
         "s": 1 if sub_active else 0,
         "t": sub_type,
