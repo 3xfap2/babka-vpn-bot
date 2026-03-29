@@ -122,9 +122,41 @@ async def subscription_active(user_id: int) -> bool:
 
 
 async def assign_key(user_id: int, key_type: str, days: int) -> str | None:
-    """Assign a key, extending existing subscription if active."""
+    """Assign a key or extend existing subscription. One key per user."""
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
+        async with db.execute(
+            "SELECT vpn_key, sub_end, pending_ref_days FROM users WHERE user_id = ?", (user_id,)
+        ) as cur:
+            user_row = await cur.fetchone()
+
+        now = datetime.now()
+        pending_days = int(user_row["pending_ref_days"]) if user_row and user_row["pending_ref_days"] else 0
+
+        # If user already has an active key — just extend time, no new key
+        existing_key = user_row["vpn_key"] if user_row else None
+        base = now
+        if user_row and user_row["sub_end"]:
+            try:
+                existing_end = datetime.fromisoformat(user_row["sub_end"])
+                if existing_end > now:
+                    base = existing_end
+            except Exception:
+                pass
+
+        end = base + timedelta(days=days + pending_days)
+
+        if existing_key:
+            # Renewal: keep existing key, just extend time
+            await db.execute("""
+                UPDATE users SET sub_type = ?, sub_end = ?,
+                    expiry_notified = 0, pending_ref_days = 0
+                WHERE user_id = ?
+            """, (key_type, end.isoformat(), user_id))
+            await db.commit()
+            return existing_key
+
+        # New user: take a fresh key from pool
         async with db.execute(
             "SELECT * FROM keys WHERE used = 0 AND expired = 0 AND (key_type = ? OR key_type = 'any') LIMIT 1",
             (key_type,)
@@ -133,24 +165,6 @@ async def assign_key(user_id: int, key_type: str, days: int) -> str | None:
         if not row:
             return None
         key_row = dict(row)
-        now = datetime.now()
-
-        # Extend existing subscription or start new one
-        async with db.execute("SELECT sub_end, pending_ref_days FROM users WHERE user_id = ?", (user_id,)) as cur:
-            user_row = await cur.fetchone()
-
-        base = now
-        if user_row and user_row["sub_end"]:
-            try:
-                existing_end = datetime.fromisoformat(user_row["sub_end"])
-                if existing_end > now:
-                    base = existing_end  # extend from current end
-            except Exception:
-                pass
-
-        # Add pending referral days
-        pending_days = int(user_row["pending_ref_days"]) if user_row and user_row["pending_ref_days"] else 0
-        end = base + timedelta(days=days + pending_days)
 
         await db.execute(
             "UPDATE keys SET used = 1, assigned_to = ?, assigned_at = ? WHERE id = ?",
