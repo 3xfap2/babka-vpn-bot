@@ -40,30 +40,41 @@ async def successful_payment(message: Message, bot: Bot):
 
     # ── TEST ──────────────────────────────────────────────
     if sub_type == "test":
-        TEST_KEY = "тест-ключ-vpn-12345"
+        from handlers.start import build_webapp_url
+        from datetime import datetime
+        existing_test = await get_user(user_id)
+        is_renewal_test = bool(existing_test and existing_test.get("vpn_key"))
+        TEST_KEY = existing_test.get("vpn_key") or "тест-ключ-vpn-12345" if existing_test else "тест-ключ-vpn-12345"
         await manual_set_key(user_id, TEST_KEY, "test", 1)
         await save_payment(user_id, payload, stars, sp.telegram_payment_charge_id)
-
-        from handlers.start import build_webapp_url
         user_data = await get_user(user_id)
-        url = await build_webapp_url(
-            user_data, bot, user_id,
-            first_name=first_name, username=username,
-        )
+        url = await build_webapp_url(user_data, bot, user_id, first_name=first_name, username=username, skip_invoices=True)
         kb = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="🔓 Открыть БАБКА VPN", web_app=WebAppInfo(url=url))],
             [InlineKeyboardButton(text="💬 Связаться с поддержкой", url="https://t.me/Pardonsky")],
         ])
-        await message.answer(
-            "✅ <b>Тест прошёл успешно!</b>\n\n"
-            "🔑 Тестовый VPN ключ:\n<code>тест-ключ-vpn-12345</code>\n\n"
-            "Откройте приложение — в профиле обновится статус подписки.",
-            parse_mode="HTML", reply_markup=kb
-        )
+        if is_renewal_test:
+            sub_end_str = ""
+            if user_data and user_data.get("sub_end"):
+                try:
+                    sub_end_str = datetime.fromisoformat(user_data["sub_end"]).strftime("%d.%m.%Y")
+                except Exception:
+                    pass
+            await message.answer(
+                f"✅ <b>Тест прошёл!</b>\n\nВаша подписка продлена до <b>{sub_end_str}</b>.\nУдачи в использовании! 🚀",
+                parse_mode="HTML", reply_markup=kb
+            )
+        else:
+            await message.answer(
+                "✅ <b>Тест прошёл успешно!</b>\n\n"
+                f"🔑 VPN ключ:\n<code>{TEST_KEY}</code>\n\n"
+                "Нажмите на ключ чтобы скопировать, затем вставьте в <b>Happ</b>",
+                parse_mode="HTML", reply_markup=kb
+            )
         await _notify_admin(bot,
             f"🧪 <b>Тест оплата</b>\n"
             f"👤 {first_name} (@{username}) <code>{user_id}</code>\n"
-            f"📦 Тариф: Тест | ⭐ {stars} звёзд"
+            f"📦 {'Продление' if is_renewal_test else 'Новый'} | ⭐ {stars} звёзд"
         )
         return
 
