@@ -51,7 +51,7 @@ async def successful_payment(message: Message, bot: Bot):
         url = await build_webapp_url(user_data, bot, user_id, first_name=first_name, username=username, skip_invoices=True)
         kb = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="🔓 Открыть БАБКА VPN", web_app=WebAppInfo(url=url))],
-            [InlineKeyboardButton(text="💬 Связаться с поддержкой", url="https://t.me/Pardonsky")],
+            [InlineKeyboardButton(text="💬 Связаться с поддержкой", url="https://t.me/babkavpnhelp")],
         ])
         if is_renewal_test:
             sub_end_str = ""
@@ -105,7 +105,7 @@ async def successful_payment(message: Message, bot: Bot):
         )
         kb = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="🔓 Открыть БАБКА VPN", web_app=WebAppInfo(url=url))],
-            [InlineKeyboardButton(text="💬 Связаться с поддержкой", url="https://t.me/Pardonsky")],
+            [InlineKeyboardButton(text="💬 Связаться с поддержкой", url="https://t.me/babkavpnhelp")],
         ])
 
         if is_renewal:
