@@ -229,6 +229,7 @@ async def cmd_givekey(message: Message, bot: Bot):
     sub_type = parts[3]
     days_map = {"week": WEEK_DAYS, "month": MONTH_DAYS, "trial": 7}
     days = days_map.get(sub_type, WEEK_DAYS)
+    type_ru = {"week": "Неделя", "month": "Месяц", "trial": "Пробная"}
     await manual_set_key(target_id, key, sub_type, days)
     await message.answer(f"✅ Ключ выдан пользователю <code>{target_id}</code>", parse_mode="HTML")
     try:
@@ -241,7 +242,7 @@ async def cmd_givekey(message: Message, bot: Bot):
         await bot.send_message(
             target_id,
             f"🎉 <b>Администратор выдал вам подписку!</b>\n\n"
-            f"Тариф: <b>{sub_type}</b>\n"
+            f"Тариф: <b>{type_ru.get(sub_type, sub_type)}</b>\n"
             f"VPN ключ: <code>{key}</code>\n\n"
             "⚠️ <b>Нажмите кнопку ниже</b> — откроется обновлённое приложение с вашим ключом:",
             parse_mode="HTML",
