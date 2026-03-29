@@ -75,34 +75,58 @@ async def successful_payment(message: Message, bot: Bot):
     else:
         return
 
+    # Check if user already has a key (renewal vs new)
+    existing = await get_user(user_id)
+    is_renewal = bool(existing and existing.get("vpn_key"))
+
     key = await assign_key(user_id, sub_type, days)
     await save_payment(user_id, payload, stars, sp.telegram_payment_charge_id)
 
     from handlers.start import build_webapp_url
+    from datetime import datetime
 
     if key:
         user_data = await get_user(user_id)
         url = await build_webapp_url(
             user_data, bot, user_id,
             first_name=first_name, username=username,
+            skip_invoices=True,
         )
         kb = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="🔓 Открыть БАБКА VPN", web_app=WebAppInfo(url=url))],
             [InlineKeyboardButton(text="💬 Связаться с поддержкой", url="https://t.me/Pardonsky")],
         ])
-        await message.answer(
-            f"✅ <b>Оплата прошла!</b> Подписка: <b>{label}</b>\n\n"
-            f"🔑 Ваш VPN ключ:\n<code>{key}</code>\n\n"
-            "Нажмите на ключ чтобы скопировать, затем вставьте в <b>Happ</b>",
-            parse_mode="HTML", reply_markup=kb
-        )
+
+        if is_renewal:
+            sub_end_str = ""
+            if user_data and user_data.get("sub_end"):
+                try:
+                    end_dt = datetime.fromisoformat(user_data["sub_end"])
+                    sub_end_str = end_dt.strftime("%d.%m.%Y")
+                except Exception:
+                    pass
+            await message.answer(
+                f"✅ <b>Оплата прошла!</b>\n\n"
+                f"Ваша подписка продлена до <b>{sub_end_str}</b>.\n"
+                "Удачи в использовании! 🚀",
+                parse_mode="HTML", reply_markup=kb
+            )
+        else:
+            await message.answer(
+                f"✅ <b>Оплата прошла!</b> Подписка: <b>{label}</b>\n\n"
+                f"🔑 Ваш VPN ключ:\n<code>{key}</code>\n\n"
+                "Нажмите на ключ чтобы скопировать, затем вставьте в <b>Happ</b>",
+                parse_mode="HTML", reply_markup=kb
+            )
+
         # Уведомление админу
+        action = "Продление" if is_renewal else "Новая покупка"
         await _notify_admin(bot,
-            f"💰 <b>Новая покупка!</b>\n"
+            f"💰 <b>{action}!</b>\n"
             f"👤 {first_name} (@{username}) <code>{user_id}</code>\n"
             f"📦 Тариф: {label}\n"
             f"⭐ {stars} звёзд (~{rub_price})\n"
-            f"🔑 Ключ выдан: <code>{key}</code>"
+            f"🔑 Ключ: <code>{key}</code>"
         )
         # Реферальная награда — если купил месяц
         if sub_type == "month":
