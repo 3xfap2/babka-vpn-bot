@@ -58,7 +58,7 @@ async def _check_and_grant_trial(user_id: int, first_name: str, username: str,
         )
         kb = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="🔓 Открыть БАБКА VPN", web_app=WebAppInfo(url=app_url))],
-            [InlineKeyboardButton(text="💬 Связаться с поддержкой", url="https://t.me/Pardonsky")],
+            [InlineKeyboardButton(text="💬 Связаться с поддержкой", url="https://t.me/babkavpnhelp")],
         ])
         await reply_func(
             f"🎉 <b>Пробная подписка активирована на {TRIAL_DAYS} дня!</b>\n\n"
@@ -134,7 +134,7 @@ async def check_subscription_callback(callback: CallbackQuery, bot: Bot):
         kb = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="🔓 Открыть БАБКА VPN", web_app=WebAppInfo(url=url))],
             [InlineKeyboardButton(text="👥 Пригласить друга (+7 дней)", url=f"https://t.me/share/url?url={quote(ref_link)}&text={quote('Крутой VPN бот!')}")],
-            [InlineKeyboardButton(text="💬 Связаться с поддержкой", url="https://t.me/Pardonsky")],
+            [InlineKeyboardButton(text="💬 Связаться с поддержкой", url="https://t.me/babkavpnhelp")],
         ])
         await callback.message.answer(
             "👋 Добро пожаловать в <b>БАБКА VPN</b>!\n\n"
