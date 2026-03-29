@@ -162,7 +162,7 @@ async def cmd_start(message: Message, bot: Bot):
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🔓 Открыть БАБКА VPN", web_app=WebAppInfo(url=url))],
         [InlineKeyboardButton(text="👥 Пригласить друга (+7 дней)", url=f"https://t.me/share/url?url={quote(ref_link)}&text={quote('Крутой VPN бот!')}")],
-        [InlineKeyboardButton(text="💬 Связаться с поддержкой", url="https://t.me/Pardonsky")],
+        [InlineKeyboardButton(text="💬 Связаться с поддержкой", url="https://t.me/babkavpnhelp")],
     ])
 
     await message.answer(
