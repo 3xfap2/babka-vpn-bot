@@ -11,7 +11,7 @@ TRIAL_CHANNEL = os.getenv("TRIAL_CHANNEL", "@BabkaVPN")
 SUPPORT_USERNAME = os.getenv("SUPPORT_USERNAME", "@Pardonsky")
 FAQ_USERNAME = os.getenv("FAQ_USERNAME", "@Pardonsky")
 WEB_PORT = int(os.getenv("WEB_PORT", "8000"))
-DB_PATH = "babka_vpn.db"
+DB_PATH = os.getenv("DB_PATH", "babka_vpn.db")
 
 WEEK_PRICE_STARS = 25
 MONTH_PRICE_STARS = 100
