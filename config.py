@@ -8,8 +8,8 @@ BOT_USERNAME = os.getenv("BOT_USERNAME", "babka_vpnbot")
 ADMIN_IDS = [int(x.strip()) for x in os.getenv("ADMIN_IDS", "6849781575,7565071317").split(",")]
 WEBAPP_URL = os.getenv("WEBAPP_URL", "https://your-domain.com")
 TRIAL_CHANNEL = os.getenv("TRIAL_CHANNEL", "@BabkaVPN")
-SUPPORT_USERNAME = os.getenv("SUPPORT_USERNAME", "@Pardonsky")
-FAQ_USERNAME = os.getenv("FAQ_USERNAME", "@Pardonsky")
+SUPPORT_USERNAME = os.getenv("SUPPORT_USERNAME", "@babkavpnhelp")
+FAQ_USERNAME = os.getenv("FAQ_USERNAME", "@babkavpnhelp")
 WEB_PORT = int(os.getenv("WEB_PORT", "8000"))
 DB_PATH = os.getenv("DB_PATH", "babka_vpn.db")
 
